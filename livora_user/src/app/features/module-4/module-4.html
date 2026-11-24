@@ -1,0 +1,376 @@
+<main class="ai-design">
+
+  <!-- ===== HERO ===== -->
+  <section class="hero">
+    <div class="hero-text">
+      <span class="hero-eyebrow">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M12 2l2.4 5.6L20 10l-5.6 2.4L12 18l-2.4-5.6L4 10l5.6-2.4L12 2z" />
+        </svg>
+        LIVORA KREATIV
+      </span>
+      <h1 class="hero-title">Thiết kế không gian<br>hoàn hảo với AI</h1>
+      <p class="hero-subtitle">
+        Hình dung, lên kế hoạch và tạo ra ngôi nhà mơ ước của bạn.
+        Kéo thả trực tiếp nội thất LIVORA vào mô hình không gian 3D AR (.GLB) trước khi mua.
+      </p>
+      <div class="hero-actions">
+        <button type="button" class="btn btn-primary" (click)="roomsSection.scrollIntoView({ behavior: 'smooth' })">Bắt đầu thiết kế</button>
+      </div>
+    </div>
+
+    <div class="hero-media">
+      <img src="intro.2.png" alt="Phòng được thiết kế với LIVORA AI" class="hero-image">
+      <button type="button" class="hero-play" aria-label="Xem trước">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== SPACES / EMPTY ROOMS ===== -->
+  <section class="rooms" #roomsSection>
+    <div class="rooms-head">
+      <div>
+        <h2 class="rooms-title">Không gian thiết kế</h2>
+        <p class="rooms-hint">Chọn không gian chuẩn từ LIVORA hoặc tự tải tệp mô hình 3D AR (.GLB) để bắt đầu bài trí</p>
+      </div>
+    </div>
+
+    @if (rooms.length === 0) {
+      <div style="padding: 48px; text-align: center; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px; margin-top: 16px;">
+        <svg style="margin: 0 auto 12px; width: 40px; height: 40px; color: #9ca3af;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        <p style="font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 6px;">Chưa có không gian thiết kế mẫu nào</p>
+        <p style="font-size: 13px; color: #6b7280; margin: 0;">Các không gian mẫu được tạo từ trang Quản lý không gian ở Admin sẽ tự động xuất hiện tại đây.</p>
+      </div>
+    } @else {
+      <div class="rooms-grid">
+        @for (room of rooms; track (room.id || room.name + '_' + $index)) {
+          <article class="room-card" (click)="onRoomCardClick(room)">
+            <div class="room-thumb">
+              @if (room.image) {
+                <img [src]="room.image" [alt]="room.name" loading="lazy">
+              } @else {
+                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f3f4f6; color: #9ca3af;">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                </div>
+              }
+              <span class="room-tag">{{ room.tag }}</span>
+              <button type="button" class="room-add" aria-label="Thiết kế phòng này">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+                  <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z" />
+                </svg>
+              </button>
+            </div>
+            <div class="room-info">
+              <h3 class="room-name">{{ room.name }}</h3>
+              <span class="room-area">{{ room.area }}</span>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+
+</main>
+
+<!-- ===== ROOM PLANNER OVERLAY ===== -->
+@if (plannerOpen()) {
+  <div class="planner">
+
+    <!-- top bar -->
+    <header class="planner-bar">
+      <div class="bar-left">
+        <button class="bar-tab" [class.active]="activeTab() === 'add'" (click)="setTab('add')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z"/></svg>
+          Sản phẩm
+        </button>
+        <button class="bar-tab" [class.active]="activeTab() === 'list'" (click)="setTab('list')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h18v2H3v-2z"/></svg>
+          Danh sách thiết kế ({{ savedDesigns().length }})
+        </button>
+      </div>
+      
+      <div class="bar-center">
+        <span class="bar-title">{{ activeRoom()?.name }}</span>
+        
+        <!-- GLB file indicator or upload button -->
+        @if (currentGlbName) {
+          <span class="glb-badge-active" title="Mô hình 3D .GLB đang sử dụng">
+            <i class="bi bi-box-fill"></i> {{ currentGlbName }}
+            <button class="btn-remove-glb" (click)="removeCurrentGlb()" title="Gỡ file .glb">&times;</button>
+          </span>
+        }
+
+        <label class="btn-upload-glb" title="Tải tệp không gian 3D (.glb) từ máy tính">
+          <i class="bi bi-cloud-arrow-up-fill"></i>
+          <span>{{ currentGlbName ? 'Đổi file .GLB' : 'Thêm file .GLB' }}</span>
+          <input type="file" (change)="onGlbFileSelected($event)">
+        </label>
+      </div>
+
+      <div class="bar-right">
+        <button class="bar-icon" title="Lưu thiết kế vào danh sách" (click)="saveDesign()">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17.4l-4.7-5.7 1.4-1.4L12 13.6V3h0zM5 19h14v2H5z"/></svg>
+        </button>
+        <span class="bar-total">{{ total() | number:'1.0-0' }} ₫</span>
+        <button class="bar-summary" (click)="goCheckout()">Tổng kết ({{ placed().length }}) <span>&rsaquo;</span></button>
+        <button class="bar-close" (click)="closePlanner()" aria-label="Đóng">&times;</button>
+      </div>
+    </header>
+
+    <div class="planner-body">
+
+      <!-- left catalog -->
+      <aside class="planner-side">
+        @if (activeTab() === 'add') {
+          <div class="side-search">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 14z"/></svg>
+            <input type="text" placeholder="Tìm sản phẩm để kéo thả..." (input)="onSearch($event)">
+          </div>
+
+          <div class="side-room-info">
+            <span class="room-indicator-dot"></span>
+            <span>{{ activeRoom()?.name }} · {{ activeRoom()?.area }}</span>
+          </div>
+
+          <div class="side-chips">
+            @for (cat of categories; track cat) {
+              <button class="chip" [class.active]="activeCategory() === cat" (click)="setCategory(cat)">{{ cat }}</button>
+            }
+          </div>
+
+          <div class="side-drag-tip">
+            <i class="bi bi-arrows-move"></i>
+            <span>Kéo sản phẩm và thả vào không gian 3D</span>
+          </div>
+
+          <div class="side-list">
+            @for (p of filteredProducts(); track trackId($index, p)) {
+              <div class="prod"
+                   draggable="true"
+                   (dragstart)="onProductDragStart($event, p)"
+                   (dragend)="onProductDragEnd()"
+                   title="Kéo thả vào không gian 3D">
+                <button class="prod-thumb" (click)="addProduct(p)" [attr.aria-label]="'Thêm ' + p.name">
+                  <img [src]="p.image" [alt]="p.name" loading="lazy">
+                  <span class="drag-badge"><i class="bi bi-arrows-move"></i> Kéo thả</span>
+                </button>
+                <div class="prod-info">
+                  <span class="prod-name">{{ p.name }}</span>
+                  <span class="prod-desc">{{ p.desc }}</span>
+                  <span class="prod-price">{{ p.price | number:'1.0-0' }} ₫</span>
+                </div>
+              </div>
+            }
+            @if (filteredProducts().length === 0) {
+              <p class="side-empty">Không tìm thấy sản phẩm phù hợp.</p>
+            }
+          </div>
+        } @else {
+          <!-- Saved designs list -->
+          <div class="side-saved-designs">
+            <div class="saved-header">
+              <h3>Danh sách thiết kế</h3>
+              <span class="saved-count">{{ savedDesigns().length }} thiết kế</span>
+            </div>
+
+            @for (design of savedDesigns(); track design.id) {
+              <div class="saved-design-card">
+                <div class="saved-card-top">
+                  <strong class="design-title">{{ design.name }}</strong>
+                  <button class="btn-del-design" (click)="deleteSavedDesign(design.id, $event)" title="Xóa thiết kế">&times;</button>
+                </div>
+
+                <div class="saved-meta">
+                  <span class="meta-space"><i class="bi bi-door-open"></i> {{ design.spaceName }}</span>
+                  @if (design.glbFileName && design.glbFileName !== 'Không gian chuẩn') {
+                    <span class="meta-glb"><i class="bi bi-box"></i> {{ design.glbFileName }}</span>
+                  }
+                </div>
+
+                <div class="saved-summary-line">
+                  <span class="saved-date">{{ design.date }}</span>
+                  <span class="saved-cost">{{ design.itemCount }} món · <strong>{{ design.totalPrice | number:'1.0-0' }} ₫</strong></span>
+                </div>
+
+                <div class="saved-items-preview">
+                  @for (item of design.items.slice(0, 5); track item.placedId) {
+                    <img [src]="item.image" [alt]="item.name" [title]="item.name + ' - ' + (item.price | number:'1.0-0') + ' ₫'">
+                  }
+                  @if (design.items.length > 5) {
+                    <span class="saved-more-badge">+{{ design.items.length - 5 }}</span>
+                  }
+                </div>
+
+                <div class="saved-card-actions">
+                  <button class="btn-load-design" (click)="loadSavedDesignItem(design)" title="Tải lại vào không gian">
+                    <i class="bi bi-arrow-repeat"></i> Tải vào 3D
+                  </button>
+                  <button class="btn-add-design-cart" (click)="addDesignToCart(design, $event)" title="Thêm tất cả sản phẩm vào giỏ">
+                    <i class="bi bi-cart-plus"></i> Đặt mua
+                  </button>
+                </div>
+              </div>
+            }
+
+            @if (savedDesigns().length === 0) {
+              <div class="empty-saved-msg">
+                <i class="bi bi-box2"></i>
+                <p>Chưa có thiết kế nào trong danh sách.</p>
+                <small>Kéo thả sản phẩm vào không gian và bấm biểu tượng "Lưu" ở góc trên bên phải để lưu thiết kế.</small>
+              </div>
+            }
+          </div>
+        }
+      </aside>
+
+      <!-- 3D stage with Drag & Drop Dropzone -->
+      <div class="stage"
+           (dragover)="onStageDragOver($event)"
+           (dragleave)="onStageDragLeave($event)"
+           (drop)="onStageDrop($event)">
+
+        <!-- Drag Over Highlight Indicator -->
+        @if (isDraggingOverStage) {
+          <div class="stage-drop-overlay">
+            <div class="drop-indicator-box">
+              <i class="bi bi-box-arrow-in-down"></i>
+              <span>Thả sản phẩm vào không gian 3D</span>
+            </div>
+          </div>
+        }
+
+        <!-- GLB 3D Viewer or Custom Uploaded Backdrop -->
+        @if (currentGlbUrl) {
+          @if (isGlbFile(currentGlbName)) {
+            <model-viewer
+              [src]="currentGlbUrl"
+              camera-controls
+              auto-rotate
+              rotation-per-second="6deg"
+              shadow-intensity="1"
+              class="glb-viewer-canvas">
+            </model-viewer>
+          } @else if (isImageFile(currentGlbName)) {
+            <img [src]="currentGlbUrl" alt="Không gian 3D" class="glb-image-backdrop">
+          } @else {
+            <div class="glb-file-backdrop">
+              <i class="bi bi-box-seam"></i>
+              <span>Mô hình không gian: {{ currentGlbName }}</span>
+              <small>Đang sử dụng môi trường không gian 3D mô phỏng</small>
+            </div>
+          }
+        }
+
+        <!-- 3D Room Floor & Placed Items Stage -->
+        <div class="room3d" [attr.data-view]="view()" [class.has-glb]="!!currentGlbUrl">
+          @if (!currentGlbUrl) {
+            <div class="room-floor"></div>
+            <div class="room-wall-left"></div>
+            <div class="room-wall-back">
+              <div class="room-window"></div>
+              <div class="room-door"></div>
+            </div>
+          }
+
+          <!-- Placed Furniture Items with Absolute Coordinates -->
+          @for (p of placed(); track trackPlacedId($index, p)) {
+            <div class="room-item" [style.left.%]="p.x" [style.top.%]="p.y">
+              <div class="item-img-wrapper">
+                <img [src]="p.image" [alt]="p.name">
+              </div>
+              <div class="item-tag">{{ p.name }} · {{ p.price | number:'1.0-0' }} ₫</div>
+              <button class="item-remove" (click)="removeProduct($index)" aria-label="Xóa">&times;</button>
+            </div>
+          }
+
+          @if (placed().length === 0 && !isDraggingOverStage) {
+            <div class="stage-empty-hint">
+              <i class="bi bi-arrows-move"></i>
+              <span>Kéo thả sản phẩm từ danh mục bên trái vào đây</span>
+            </div>
+          }
+        </div>
+
+        <!-- View mode controls -->
+        <div class="view-switch">
+          <button [class.active]="view() === 'dollhouse'" (click)="setView('dollhouse')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3 2 12h3v8h6v-5h2v5h6v-8h3z"/></svg>
+            <span>Nhà<br>mô hình</span>
+          </button>
+          <button [class.active]="view() === 'top'" (click)="setView('top')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+            <span>Nhìn<br>từ trên</span>
+          </button>
+          <button [class.active]="view() === 'side'" (click)="setView('side')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 5h16v14H4z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Nhìn<br>ngang</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ===== SELECT SIZE MODAL ===== -->
+@if (showSelectSizeModal) {
+  <div class="modal-overlay" (click)="closeSelectSizeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <h3 class="modal-title">Chọn kích thước không gian</h3>
+      <p class="modal-subtitle">Cấu hình kích thước phòng cho {{ pendingRoomSelection?.name }}</p>
+      
+      <div class="preset-options">
+        <button class="preset-btn" [class.active]="selectedPreset === 'small'" (click)="selectSizePreset('small', 4, 3)">
+          <strong>Nhỏ</strong>
+          <span>4m x 3m (12 m²)</span>
+        </button>
+        <button class="preset-btn" [class.active]="selectedPreset === 'medium'" (click)="selectSizePreset('medium', 6, 4)">
+          <strong>Vừa</strong>
+          <span>6m x 4m (24 m²)</span>
+        </button>
+        <button class="preset-btn" [class.active]="selectedPreset === 'large'" (click)="selectSizePreset('large', 8, 5)">
+          <strong>Lớn</strong>
+          <span>8m x 5m (40 m²)</span>
+        </button>
+      </div>
+
+      <div class="custom-dimension-controls" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px;">
+        <div>
+          <label style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--ink);">
+            <span>Chiều dài (mét)</span>
+            <span>{{ selectLength }}m</span>
+          </label>
+          <input type="range" min="3" max="12" [(ngModel)]="selectLength" (input)="selectedPreset = 'custom'" style="width: 100%;">
+        </div>
+        <div>
+          <label style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--ink);">
+            <span>Chiều rộng (mét)</span>
+            <span>{{ selectWidth }}m</span>
+          </label>
+          <input type="range" min="3" max="10" [(ngModel)]="selectWidth" (input)="selectedPreset = 'custom'" style="width: 100%;">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" (click)="closeSelectSizeModal()">Hủy</button>
+        <button class="btn btn-primary" (click)="confirmRoomSize()">Xác nhận & Bắt đầu thiết kế</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Toast Notification -->
+@if (showToast) {
+  <div class="fixed bottom-8 right-8 z-[9999] flex items-center bg-gray-900 text-white px-6 py-4 rounded-lg shadow-2xl transition-all duration-300 animate-bounce">
+    <i class="bi bi-check-circle-fill text-green-400 text-xl mr-3"></i>
+    <span class="font-medium text-sm tracking-wide">{{ toastMessage }}</span>
+  </div>
+}

@@ -1,0 +1,137 @@
+import { CommonModule } from '@angular/common';
+import { ChangeDetectorRef, Component, DestroyRef, ViewChild, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule, NgForm } from '@angular/forms';
+import { ConfirmDialog } from '../../shared/confirm-dialog/confirm-dialog';
+import { FormModal } from '../../shared/form-modal/form-modal';
+import { ActivityLogComponent } from '../../shared/activity-log/activity-log';
+import { Room as RoomRecord } from '../room/room.model';
+import { RoomService } from '../room/room.service';
+import { DesignRecord, SpaceDraft, SpaceRecord } from './space.model';
+import { DesignService, SpaceService } from './space.service';
+
+type Tab = 'spaces' | 'designs';
+type Mode = 'create' | 'edit' | 'view';
+@Component({ selector: 'app-space', standalone: true, imports: [CommonModule, FormsModule, FormModal, ConfirmDialog, ActivityLogComponent], templateUrl: './space.html' })
+export class Space {
+  @ViewChild('spaceForm') spaceForm?: NgForm;
+  activeModalTab: 'form' | 'history' = 'form';
+  activeDesignTab: 'info' | 'history' = 'info';
+  private readonly service = inject(SpaceService);
+  private readonly designsService = inject(DesignService);
+  private readonly roomsService = inject(RoomService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
+  readonly rooms = signal<RoomRecord[]>([]);
+  readonly allSpaces = signal<SpaceRecord[]>([]);
+  readonly spaces = signal<SpaceRecord[]>([]);
+  readonly designs = signal<DesignRecord[]>([]);
+  readonly loading = signal(true);
+  readonly error = signal('');
+  readonly notice = signal('');
+  readonly total = signal(0);
+  readonly page = signal(1);
+  readonly pages = signal(1);
+  readonly pageNumbers = signal<number[]>([1]);
+  readonly modalOpen = signal(false);
+  readonly saving = signal(false);
+  readonly formError = signal('');
+  readonly fileError = signal('');
+  readonly pending = signal<SpaceRecord | null>(null);
+  readonly selectedDesign = signal<DesignRecord | null>(null);
+  readonly spaceCount = signal(0);
+  readonly designCount = signal(0);
+  tab: Tab = 'spaces';
+  mode: Mode = 'create';
+  editing: SpaceRecord | null = null;
+  search = '';
+  roomFilter = '';
+  status: 'all' | 'active' | 'inactive' = 'all';
+  spaceFilter = '';
+  customerFilter = '';
+  form: SpaceDraft = this.blank();
+  readonly pageSize = 6;
+
+  constructor() {
+    this.roomsService.listRooms({search: '', status: 'all', page: 1, pageSize: 100}).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next: (result) => this.rooms.set(result.items), error: () => this.error.set('Không tải được danh sách phòng.')});
+    this.service.list('', '', 'all', 1, 100).pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+      this.spaceCount.set(result.total);
+      this.allSpaces.set(result.items);
+      if (result.total < 10) {
+        this.service.seedDefaults().subscribe({
+          next: () => {
+            this.service.list('', '', 'all', 1, 100).subscribe((r2) => {
+              this.spaceCount.set(r2.total);
+              this.allSpaces.set(r2.items);
+              this.load();
+            });
+          },
+          error: () => {}
+        });
+      }
+    });
+    this.designsService.list('', '', '', 1, 100).pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => this.designCount.set(result.total));
+    this.load();
+  }
+  blank(): SpaceDraft { return {code: '', name: '', roomId: '', description: '', lengthM: null as any, widthM: null as any, heightM: null as any, modelFile: null, isActive: true}; }
+  selectTab(tab: Tab): void { this.tab = tab; this.notice.set(''); this.search = ''; this.roomFilter = ''; this.status = 'all'; this.spaceFilter = ''; this.customerFilter = ''; this.page.set(1); this.load(); }
+  load(): void {
+    this.loading.set(true); this.error.set('');
+    if (this.tab === 'spaces') this.service.list(this.search, this.roomFilter, this.status, this.page(), this.pageSize).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next: (result) => { this.spaces.set(result.items); this.finishLoad(result.total, result.page, result.pages); }, error: () => this.failLoad('Không tải được danh sách không gian.')});
+    else this.designsService.list(this.search, this.spaceFilter, this.customerFilter, this.page(), 10).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next: (result) => { this.designs.set(result.items); this.finishLoad(result.total, result.page, result.pages); }, error: () => this.failLoad('Không tải được danh sách thiết kế.')});
+  }
+  private finishLoad(total: number, page: number, pages: number): void { this.total.set(total); this.page.set(page); this.pages.set(pages); this.pageNumbers.set(Array.from({length: pages}, (_, i) => i + 1)); this.loading.set(false); }
+  private failLoad(message: string): void { this.loading.set(false); this.error.set(message); }
+  apply(): void { this.page.set(1); this.load(); }
+  reset(): void { this.search = ''; this.roomFilter = ''; this.status = 'all'; this.spaceFilter = ''; this.customerFilter = ''; this.apply(); }
+  changePage(page: number): void { if (page >= 1 && page <= this.pages()) { this.page.set(page); this.load(); } }
+  roomName(id: string): string { return this.rooms().find((room) => room.id === id)?.name ?? (this.rooms().length ? 'Phòng không còn tồn tại' : 'Đang tải phòng…'); }
+  roomImage(id: string): string { return this.rooms().find((room) => room.id === id)?.thumbnail ?? ''; }
+  spaceName(id: string): string { return this.allSpaces().find((s) => s.id === id)?.name ?? this.spaces().find((s) => s.id === id)?.name ?? 'Không gian không còn tồn tại'; }
+  spaceCode(id: string): string { return this.allSpaces().find((s) => s.id === id)?.code ?? this.spaces().find((s) => s.id === id)?.code ?? '—'; }
+  spacesForFilter(): SpaceRecord[] { return this.spaceFilter ? this.allSpaces().filter((item) => item.id === this.spaceFilter) : this.allSpaces(); }
+  allSpaceOptions(): SpaceRecord[] { return this.allSpaces().length ? this.allSpaces() : this.spaces(); }
+  customers(): { code: string; name: string }[] {
+    const map = new Map<string, string>();
+    this.designs().forEach((d) => {
+      if (d.customerCode && d.customerName) {
+        map.set(d.customerCode, `${d.customerCode} · ${d.customerName}`);
+      }
+    });
+    return Array.from(map.entries()).map(([code, name]) => ({ code, name }));
+  }
+  area(item: SpaceRecord | SpaceDraft): string { return (item.lengthM * item.widthM).toFixed(1); }
+  volume(): string { return (this.form.lengthM * this.form.widthM * this.form.heightM).toFixed(1); }
+  selectedFileSize(): string { const bytes = this.form.modelFile?.size ?? 0; return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
+  calculateNextSpaceCode(): string {
+    const list = this.allSpaces().length ? this.allSpaces() : this.spaces();
+    const maxNum = list.reduce((max, s) => {
+      const match = s.code?.match(/KG-(\d+)/i) || s.code?.match(/(\d+)/);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    const next = Math.max(maxNum, this.spaceCount(), this.total()) + 1;
+    return `KG-${String(next).padStart(3, '0')}`;
+  }
+  openCreate(): void { this.mode = 'create'; this.editing = null; this.form = { ...this.blank(), code: this.calculateNextSpaceCode() }; this.formError.set(''); this.fileError.set(''); this.activeModalTab = 'form'; this.modalOpen.set(true); }
+  open(item: SpaceRecord, mode: Mode): void { this.mode = mode; this.editing = item; this.form = {code: item.code, name: item.name, roomId: item.roomId, description: item.description, lengthM: item.lengthM, widthM: item.widthM, heightM: item.heightM, modelFile: item.modelFile ? {...item.modelFile} : null, isActive: item.isActive}; this.formError.set(''); this.fileError.set(''); this.activeModalTab = 'form'; this.modalOpen.set(true); }
+  close(): void { if (!this.saving()) this.modalOpen.set(false); }
+  async selectFile(event: Event): Promise<void> {
+    const file = (event.target as HTMLInputElement).files?.[0]; if (!file) return;
+    if (file.size > 50 * 1024 * 1024) { this.fileError.set('Chọn file dung lượng dưới 50 MB.'); this.form.modelFile = null; return; }
+    this.form.modelFile = { name: file.name, size: file.size };
+    this.fileError.set(''); this.formError.set('');
+    this.cdr.markForCheck();
+  }
+  save(formRef?: NgForm): void {
+    if (this.mode === 'view' || this.saving()) return;
+    const form = formRef || this.spaceForm;
+    form?.control.markAllAsTouched();
+    if (!form || form.invalid) { this.formError.set('Vui lòng nhập đầy đủ mã, tên và kích thước hợp lệ.'); return; }
+    this.saving.set(true); this.formError.set('');
+    this.service.save(this.form, this.editing?.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next: () => { this.saving.set(false); this.modalOpen.set(false); this.notice.set(this.editing ? 'Đã cập nhật không gian.' : 'Đã thêm không gian.'); this.spaceCount.update((count) => this.editing ? count : count + 1); this.load(); }, error: (error: Error) => { this.saving.set(false); this.formError.set(error.message); }});
+  }
+  requestStatus(item: SpaceRecord): void { this.pending.set(item); }
+  cancelStatus(): void { this.pending.set(null); }
+  confirmStatus(): void { const item = this.pending(); if (!item) return; this.service.setActive(item.id, !item.isActive).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next: () => { this.pending.set(null); this.notice.set('Đã cập nhật trạng thái không gian.'); this.load(); }, error: (error: Error) => { this.pending.set(null); this.notice.set(error.message); }}); }
+  viewDesign(item: DesignRecord): void { this.activeDesignTab = 'info'; this.selectedDesign.set(item); }
+}

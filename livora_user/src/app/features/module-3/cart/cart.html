@@ -1,0 +1,216 @@
+<main class="cart-main">
+  <!-- ====== BREADCRUMBS ====== -->
+  <div class="breadcrumb-container">
+    <a routerLink="/home" class="breadcrumb-link">Trang chủ</a>
+    <span class="breadcrumb-separator">/</span>
+    <span class="breadcrumb-current">Giỏ hàng ({{ cartService.itemsCount() }})</span>
+  </div>
+
+  <h1 class="page-title">Giỏ hàng</h1>
+
+  <!-- Empty State -->
+  <div *ngIf="cartService.items().length === 0" class="empty-cart-state">
+    <i class="bi bi-cart-x empty-cart-icon"></i>
+    <h2>Giỏ hàng của bạn đang trống</h2>
+    <p>Hãy thêm những sản phẩm tuyệt vời của LIVORA vào giỏ hàng.</p>
+    <a routerLink="/home" class="btn btn-primary">Tiếp tục mua sắm</a>
+  </div>
+
+  <!-- Cart Content Grid -->
+  <div *ngIf="cartService.items().length > 0" class="cart-grid">
+    <!-- Left Column (Items list & Notes) -->
+    <div class="cart-items-column">
+
+      <!-- Cart Items Card -->
+      <div class="cart-card item-list-card">
+        <!-- Select All Header Bar -->
+        <div class="cart-select-all-header">
+          <label class="custom-checkbox-label select-all-label">
+            <input
+              type="checkbox"
+              class="cart-checkbox"
+              [checked]="cartService.isAllSelected()"
+              (change)="toggleSelectAll($event)"
+            />
+            <span class="select-all-text">Chọn tất cả ({{ cartService.items().length }} sản phẩm)</span>
+          </label>
+
+          <button
+            *ngIf="cartService.selectedItemsCount() > 0"
+            type="button"
+            class="btn-delete-selected"
+            (click)="removeSelected()"
+            title="Xóa các sản phẩm đã tick chọn">
+            <i class="bi bi-trash3"></i> Xóa đã chọn ({{ cartService.selectedItemsCount() }})
+          </button>
+        </div>
+
+        <div *ngFor="let item of cartService.items()" class="cart-item-row" [class.item-unselected]="item.selected === false">
+          <!-- Checkbox tick từng sản phẩm -->
+          <label class="custom-checkbox-label item-check-label">
+            <input
+              type="checkbox"
+              class="cart-checkbox"
+              [checked]="item.selected !== false"
+              (change)="toggleSelection(item.id)"
+              [attr.aria-label]="'Chọn sản phẩm ' + item.name"
+            />
+          </label>
+
+          <!-- Delete button -->
+          <button (click)="removeItem(item.id)" class="btn-delete" aria-label="Xóa sản phẩm">
+            <i class="bi bi-x"></i>
+          </button>
+
+          <!-- Thumbnail -->
+          <a [routerLink]="item.roomName ? ['/rooms', item.roomName, item.categoryName, item.productId] : null"
+             [style.pointer-events]="item.roomName ? 'auto' : 'none'"
+             class="item-thumbnail-wrapper">
+            <img [src]="item.image" [alt]="item.name" class="item-thumbnail" />
+          </a>
+
+          <!-- Name and Detail -->
+          <div class="item-details">
+            <h3 class="item-name">
+              <a [routerLink]="item.roomName ? ['/rooms', item.roomName, item.categoryName, item.productId] : null"
+                 [style.pointer-events]="item.roomName ? 'auto' : 'none'"
+                 class="item-link">
+                {{ item.name }}
+              </a>
+            </h3>
+            <p class="item-description">{{ item.description }}</p>
+          </div>
+
+          <!-- Price -->
+          <div class="item-price">
+            {{ item.price | number:'1.0-0' }} ₫
+          </div>
+
+          <!-- Quantity control -->
+          <div class="quantity-controller">
+            <button (click)="decreaseQty(item)" class="qty-btn" aria-label="Giảm số lượng">
+              <i class="bi bi-dash"></i>
+            </button>
+            <span class="qty-number">{{ item.quantity }}</span>
+            <button (click)="increaseQty(item)" class="qty-btn" aria-label="Tăng số lượng">
+              <i class="bi bi-plus"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes Card -->
+      <div class="cart-card notes-card">
+        <label for="order-notes" class="notes-label">Ghi chú đơn hàng</label>
+        <textarea
+          id="order-notes"
+          class="notes-textarea"
+          [value]="cartService.orderNote()"
+          (input)="updateNote($event)"
+          placeholder="Ghi chú về đơn hàng, ví dụ: thời gian giao hàng hoặc hướng dẫn chi tiết hơn.">
+        </textarea>
+      </div>
+
+    </div>
+
+    <!-- Right Column (Checkout summary) -->
+    <div class="cart-summary-column">
+      <div class="cart-card summary-card">
+        <h2 class="summary-title">TỔNG ĐƠN HÀNG</h2>
+
+        <div class="summary-row-container">
+          <div class="summary-row">
+            <span>Tạm tính ({{ cartService.selectedItemsCount() }} sản phẩm)</span>
+            <span class="price-val">{{ cartService.subtotal() | number:'1.0-0' }} ₫</span>
+          </div>
+
+          <div *ngIf="cartService.discountAmount() > 0" class="summary-row discount-row">
+            <span>Giảm giá ({{ cartService.discountCode() }})</span>
+            <span class="price-val discount-val">-{{ cartService.discountAmount() | number:'1.0-0' }} ₫</span>
+          </div>
+
+          <div class="summary-divider"></div>
+
+          <div class="summary-row total-row">
+            <span>Tổng cộng</span>
+            <span class="total-price-val">{{ cartService.total() | number:'1.0-0' }} ₫</span>
+          </div>
+        </div>
+
+        <!-- Promo Code Section -->
+        <div class="promo-input-section">
+          <div class="promo-field-row">
+            <input
+              type="text"
+              class="promo-input"
+              placeholder="Nhập mã giảm giá"
+              [(ngModel)]="promoInput"
+              (keyup.enter)="applyPromo()"
+            />
+            <button (click)="applyPromo()" class="btn-promo-apply">Áp dụng</button>
+          </div>
+          <p *ngIf="promoMessage" [class.error-msg]="promoError" class="promo-message-text">
+            {{ promoMessage }}
+          </p>
+        </div>
+
+        <!-- Action Button -->
+        <button
+          (click)="checkout()"
+          class="btn-checkout"
+          [disabled]="cartService.selectedItemsCount() === 0"
+          [class.btn-checkout-disabled]="cartService.selectedItemsCount() === 0">
+          THANH TOÁN ({{ cartService.selectedItemsCount() }})
+        </button>
+        <p *ngIf="cartService.selectedItemsCount() === 0" class="no-selection-warning">
+          <i class="bi bi-info-circle"></i> Vui lòng tick chọn ít nhất 1 sản phẩm để thanh toán.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== RECOMMENDATIONS SECTION ====== -->
+  <section *ngIf="recommendedProducts.length > 0" class="recommendations-section">
+    <h2 class="rec-title">Có thể bạn cũng thích</h2>
+
+    <div class="rec-grid">
+      <div *ngFor="let prod of recommendedProducts" class="rec-card">
+        <!-- Best seller Badge -->
+        <span *ngIf="prod.isBestSeller" class="badge-bestseller">Bán chạy</span>
+
+        <!-- Product Image -->
+        <a [routerLink]="['/rooms', prod.roomName, prod.categoryName, prod.id]" class="rec-img-wrapper">
+          <img [src]="prod.image" [alt]="prod.name" class="rec-img" />
+        </a>
+
+        <!-- Details -->
+        <div class="rec-info">
+          <h3 class="rec-prod-name">
+            <a [routerLink]="['/rooms', prod.roomName, prod.categoryName, prod.id]" class="rec-link">
+              {{ prod.name }}
+            </a>
+          </h3>
+          <p class="rec-prod-desc">{{ prod.description }}</p>
+
+          <!-- Price tag -->
+          <div class="rec-price-container">
+            <span class="rec-price-badge">{{ prod.price | number:'1.0-0' }} ₫</span>
+          </div>
+
+          <!-- Rating and Action Row -->
+          <div class="rec-footer-row">
+            <div class="rating-stars">
+              <i class="bi bi-star-fill text-gold"></i>
+              <span class="review-count">({{ prod.reviews }})</span>
+            </div>
+
+            <!-- Quick Add Button -->
+            <button (click)="addRecommended(prod)" class="btn-quick-add" aria-label="Thêm vào giỏ hàng">
+              <i class="bi bi-cart-plus"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>

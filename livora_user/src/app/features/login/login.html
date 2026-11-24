@@ -1,0 +1,204 @@
+<div class="login-container">
+    <a href="/home" class="back-home-link" (click)="goToHome($event)">
+        <i class="bi bi-arrow-left"></i> Quay về trang chủ LIVORA
+    </a>
+    @if (isForgot) {
+    <div class="login-card slide-right">
+        <h2 class="login-title">QUÊN MẬT KHẨU</h2>
+        @if (forgotStep === 1) {
+            <p class="login-subtitle">Nhập email hoặc số điện thoại<br>để nhận mã xác thực OTP.</p>
+        } @else {
+            <p class="login-subtitle">Nhập mã OTP và thiết lập mật khẩu mới<br>cho tài khoản {{ resetEmail }}.</p>
+        }
+
+        <div class="login-form">
+            @if (errorMessage) {
+            <div class="form-alert form-alert-error" role="alert">
+                <i class="bi bi-exclamation-circle-fill"></i><span>{{ errorMessage }}</span>
+            </div>
+            }
+            @if (resetSuccessMessage) {
+            <div class="success-message"
+                style="color: #2e7d32; background: rgba(232, 245, 233, 0.9); border: 1px solid #c8e6c9; padding: 10px 14px; border-radius: 8px; font-size: 0.9em; margin-bottom: 18px; text-align: left; font-weight: 500; line-height: 1.4;">
+                <i class="bi bi-info-circle-fill" style="margin-right: 5px;"></i>{{ resetSuccessMessage }}
+            </div>
+            }
+
+            @if (forgotStep === 1) {
+                <div class="input-group" style="margin-bottom: 20px;">
+                    <input type="text" placeholder="Email / Số điện thoại" [(ngModel)]="resetEmail" name="resetEmail" (keyup.enter)="onRequestUserOtp($event)">
+                    <span class="icon">
+                        <i class="bi bi-envelope"></i>
+                    </span>
+                </div>
+
+                <button type="button" class="btn-login" (click)="onRequestUserOtp($event)" [disabled]="submitting">
+                    {{ submitting ? 'Đang gửi mã...' : 'Gửi mã xác thực (OTP)' }}
+                </button>
+            } @else {
+                <div class="input-group" style="margin-bottom: 18px;">
+                    <input type="text" placeholder="Nhập 6 số OTP (VD: 123456)" [(ngModel)]="resetOtp" name="resetOtp" maxlength="6">
+                    <span class="icon">
+                        <i class="bi bi-key"></i>
+                    </span>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 18px; position: relative;">
+                    <input [type]="showResetPassword ? 'text' : 'password'" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" [(ngModel)]="newPassword" name="newPassword" style="padding-right: 40px;">
+                    <span class="eye-icon" (click)="showResetPassword = !showResetPassword" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #888; z-index: 10;">
+                        <i class="bi" [class.bi-eye]="!showResetPassword" [class.bi-eye-slash]="showResetPassword"></i>
+                    </span>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 22px;">
+                    <input [type]="showResetPassword ? 'text' : 'password'" placeholder="Xác nhận mật khẩu mới" [(ngModel)]="confirmNewPassword" name="confirmNewPassword">
+                    <span class="icon">
+                        <i class="bi bi-shield-lock"></i>
+                    </span>
+                </div>
+
+                <button type="button" class="btn-login" (click)="onConfirmResetPassword($event)" [disabled]="submitting">
+                    {{ submitting ? 'Đang xử lý...' : 'Xác nhận đặt lại mật khẩu' }}
+                </button>
+
+                <button type="button" style="background: transparent; border: none; color: #6B4949; font-size: 14px; text-decoration: underline; cursor: pointer; margin-top: 8px; margin-bottom: 10px;" (click)="forgotStep = 1">
+                    ← Thay đổi thông tin nhận mã
+                </button>
+            }
+
+            <p class="register-link" style="margin-top: 14px;">
+                Đã nhớ mật khẩu?
+                <a href="#" style="color: #6B4949;" (click)="showLoginForm($event)">Đăng nhập ngay</a>
+            </p>
+        </div>
+    </div>
+    } @else if (isLogin) {
+    <div class="login-card slide-right">
+        <h2 class="login-title">ĐĂNG NHẬP</h2>
+        <p class="login-subtitle">Chào mừng trở lại! Vui lòng đăng nhập<br>vào tài khoản của bạn.</p>
+
+        <div class="login-form">
+            @if (loginSuccessMessage) {
+            <div class="form-alert form-alert-success" role="status">
+                <i class="bi bi-check-circle-fill"></i><span>{{ loginSuccessMessage }}</span>
+            </div>
+            }
+            @if (infoMessage && !loginSuccessMessage) {
+            <div class="form-alert form-alert-info" role="status">
+                <i class="bi bi-info-circle-fill"></i><span>{{ infoMessage }}</span>
+            </div>
+            }
+            @if (errorMessage) {
+            <div class="form-alert form-alert-error" role="alert">
+                <i class="bi bi-exclamation-circle-fill"></i><span>{{ errorMessage }}</span>
+            </div>
+            }
+            <div class="input-group">
+                <input type="text" placeholder="Email / Số điện thoại" [(ngModel)]="username" name="username" autocomplete="username" (keyup.enter)="doLogin($event)">
+                <span class="icon">
+                    <i class="bi bi-person"></i>
+                </span>
+            </div>
+
+            <div class="input-group" style="margin-bottom: 5px; position: relative;">
+                <input [type]="showPassword ? 'text' : 'password'" placeholder="Mật khẩu" [(ngModel)]="password" name="password" (keyup.enter)="doLogin($event)" style="padding-right: 40px;">
+                <span class="eye-icon" (click)="togglePasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #888; z-index: 10;">
+                    <i class="bi" [class.bi-eye]="!showPassword" [class.bi-eye-slash]="showPassword"></i>
+                </span>
+            </div>
+
+
+            <div class="form-actions">
+                <label class="remember-me">
+                    <input type="checkbox">
+                    <span class="checkmark"></span>
+                    <span class="label-text">Ghi nhớ đăng nhập</span>
+                </label>
+                <a href="#" (click)="showForgotForm($event)" class="forgot-password">Quên mật khẩu</a>
+            </div>
+
+            <button type="button" class="btn-login" (click)="doLogin($event)" [disabled]="submitting">
+                @if (submitting) {
+                <span class="btn-spinner" aria-hidden="true"></span> Đang đăng nhập...
+                } @else {
+                Đăng nhập
+                }
+            </button>
+
+            <button type="button" class="btn-google" (click)="blockAction($event)">
+                <img class="google-logo" src="google-icon.png" alt="Google Logo">
+                Đăng nhập với Google
+            </button>
+
+            <p class="register-link">
+                Chưa có tài khoản?
+                <a href="#" style="color: #6B4949;" (click)="toggleForm($event)">Đăng ký ngay</a>
+            </p>
+        </div>
+    </div>
+    } @else {
+    <div class="login-card slide-left">
+        <h2 class="login-title">ĐĂNG KÝ</h2>
+        <p class="login-subtitle">Chào mừng! Vui lòng đăng ký để<br>bắt đầu trải nghiệm cùng LIVORA.</p>
+
+        <div class="login-form">
+            @if (signUpErrorMessage) {
+            <div class="form-alert form-alert-error" role="alert">
+                <i class="bi bi-exclamation-circle-fill"></i><span>{{ signUpErrorMessage }}</span>
+            </div>
+            }
+            @if (signUpSuccessMessage) {
+            <div class="form-alert form-alert-success" role="status">
+                <i class="bi bi-check-circle-fill"></i><span>{{ signUpSuccessMessage }}</span>
+            </div>
+            }
+
+            <div class="input-group">
+                <input type="email" placeholder="Email" [(ngModel)]="signUpEmail" name="signUpEmail" (keyup.enter)="doRegister($event)">
+                <span class="icon">
+                    <i class="bi bi-envelope"></i>
+                </span>
+            </div>
+
+            <div class="input-group">
+                <input type="tel" placeholder="Số điện thoại (tùy chọn)" [(ngModel)]="signUpPhone" name="signUpPhone" (keyup.enter)="doRegister($event)">
+                <span class="icon">
+                    <i class="bi bi-telephone"></i>
+                </span>
+            </div>
+
+            <div class="input-group" style="position: relative;">
+                <input [type]="showSignUpPassword ? 'text' : 'password'" placeholder="Mật khẩu (tối thiểu 6 ký tự)" [(ngModel)]="signUpPassword" name="signUpPassword" (keyup.enter)="doRegister($event)" style="padding-right: 40px;">
+                <span class="eye-icon" (click)="toggleSignUpPasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #888; z-index: 10;">
+                    <i class="bi" [class.bi-eye]="!showSignUpPassword" [class.bi-eye-slash]="showSignUpPassword"></i>
+                </span>
+            </div>
+
+            <div class="input-group" style="position: relative;">
+                <input [type]="showSignUpConfirmPassword ? 'text' : 'password'" placeholder="Xác nhận mật khẩu" [(ngModel)]="signUpConfirmPassword" name="signUpConfirmPassword" (keyup.enter)="doRegister($event)" style="padding-right: 40px;">
+                <span class="eye-icon" (click)="toggleSignUpConfirmPasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #888; z-index: 10;">
+                    <i class="bi" [class.bi-eye]="!showSignUpConfirmPassword" [class.bi-eye-slash]="showSignUpConfirmPassword"></i>
+                </span>
+            </div>
+
+            <button type="button" class="btn-login" (click)="doRegister($event)" [disabled]="submitting">
+                @if (submitting) {
+                <span class="btn-spinner" aria-hidden="true"></span> Đang tạo tài khoản...
+                } @else {
+                Đăng ký tài khoản
+                }
+            </button>
+
+            <button type="button" class="btn-google" (click)="blockAction($event)">
+                <img class="google-logo" src="google-icon.png" alt="Google Logo">
+                Đăng nhập với Google
+            </button>
+
+            <p class="register-link">
+                Đã có tài khoản?
+                <a href="#" style="color: #6B4949;" (click)="toggleForm($event)">Đăng nhập ngay</a>
+            </p>
+        </div>
+    </div>
+    }
+</div>

@@ -1,0 +1,583 @@
+import { ChangeDetectorRef, Component, OnInit, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { FormModal } from '../../shared/form-modal/form-modal';
+import { ActivityLogComponent } from '../../shared/activity-log/activity-log';
+import {
+  ShippingConfig as ShippingRecord,
+  ShippingDraft,
+  ShippingListQuery,
+  ShippingMethod,
+  ShippingMethodFilter,
+  ShippingStatusFilter,
+} from './shipping.model';
+import { ShippingService } from './shipping.service';
+import { ExcelService, PROVINCE_DICTIONARY } from '../../shared/services/excel.service';
+
+export interface ShippingImportReportData {
+  open: boolean;
+  title: string;
+  successCount: number;
+  updatedCount: number;
+  insertedCount: number;
+  total: number;
+  errors: string[];
+}
+
+@Component({
+  selector: 'app-shipping',
+  standalone: true,
+  imports: [FormsModule, FormModal, ActivityLogComponent],
+  templateUrl: './shipping.html',
+  // Note: shipping styles live in settings.css and are imported globally via styles.css
+  // to stay below the 8 kB angular component style budget (team convention).
+})
+export class Shipping implements OnInit {
+  private readonly shippingService = inject(ShippingService);
+  private readonly excelService = inject(ExcelService);
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  readonly pageSize = 6;
+
+  readonly configs = signal<ShippingRecord[]>([]);
+  readonly loading = signal(true);
+  readonly loadError = signal('');
+  readonly totalItems = signal(0);
+  readonly totalPages = signal(1);
+  readonly currentPage = signal(1);
+  readonly activeCount = signal(0);
+
+  searchDraft = '';
+  methodDraft: ShippingMethodFilter = 'all';
+  statusDraft: ShippingStatusFilter = 'all';
+
+  activeSearch = '';
+  activeMethod: ShippingMethodFilter = 'all';
+  activeStatus: ShippingStatusFilter = 'all';
+
+  readonly provinces = PROVINCE_DICTIONARY.map((p) => p.name);
+
+  readonly selectedConfig = signal<ShippingRecord | null>(null);
+  readonly isFormModalOpen = signal(false);
+  activeModalTab: 'form' | 'history' = 'form';
+  readonly isEditMode = signal(false);
+  readonly editingConfigId = signal<string | null>(null);
+  readonly isSubmitting = signal(false);
+  readonly formError = signal('');
+
+  formDraft: ShippingDraft = this.emptyDraft();
+
+  // === Excel Import & Export ===
+  readonly isImporting = signal(false);
+  readonly importReport = signal<ShippingImportReportData>({
+    open: false,
+    title: '',
+    successCount: 0,
+    updatedCount: 0,
+    insertedCount: 0,
+    total: 0,
+    errors: [],
+  });
+
+  readonly toastMessage = signal('');
+  readonly toastType = signal<'success' | 'error'>('success');
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  ngOnInit(): void {
+    this.loadConfigs();
+  }
+
+  loadConfigs(): void {
+    this.loading.set(true);
+    this.loadError.set('');
+
+    const query: ShippingListQuery = {
+      search: this.activeSearch,
+      method: this.activeMethod,
+      status: this.activeStatus,
+      page: this.currentPage(),
+      pageSize: this.pageSize,
+    };
+
+    this.shippingService.listConfigs(query).subscribe({
+      next: (res) => {
+        this.configs.set(res.items);
+        this.totalItems.set(res.totalItems);
+        this.totalPages.set(res.totalPages);
+        this.currentPage.set(res.page);
+        this.activeCount.set(res.activeCount);
+        this.loading.set(false);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.loadError.set('Không thể tải cấu hình vận chuyển. Vui lòng thử lại.');
+        this.loading.set(false);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  applyFilter(): void {
+    this.activeSearch = this.searchDraft;
+    this.activeMethod = this.methodDraft;
+    this.activeStatus = this.statusDraft;
+    this.currentPage.set(1);
+    this.loadConfigs();
+  }
+
+  resetFilter(): void {
+    this.searchDraft = '';
+    this.methodDraft = 'all';
+    this.statusDraft = 'all';
+    this.activeSearch = '';
+    this.activeMethod = 'all';
+    this.activeStatus = 'all';
+    this.currentPage.set(1);
+    this.loadConfigs();
+  }
+
+  changePage(page: number): void {
+    if (page < 1 || page > this.totalPages() || page === this.currentPage()) {
+      return;
+    }
+    this.currentPage.set(page);
+    this.loadConfigs();
+  }
+
+  getPaginationPages(): (number | string)[] {
+    const total = this.totalPages();
+    const current = this.currentPage();
+
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+
+    const pages: (number | string)[] = [];
+    if (current <= 4) {
+      pages.push(1, 2, 3, 4, '...', total);
+    } else if (current >= total - 3) {
+      pages.push(1, '...', total - 3, total - 2, total - 1, total);
+    } else {
+      pages.push(1, '...', current - 1, current, current + 1, '...', total);
+    }
+    return pages;
+  }
+
+  openCreateModal(): void {
+    this.activeModalTab = 'form';
+    this.isEditMode.set(false);
+    this.editingConfigId.set(null);
+    this.formError.set('');
+    this.formDraft = this.emptyDraft();
+    this.isFormModalOpen.set(true);
+  }
+
+  openEditModal(config: ShippingRecord): void {
+    this.activeModalTab = 'form';
+    this.isEditMode.set(true);
+    this.editingConfigId.set(config.id);
+    this.formError.set('');
+    this.formDraft = {
+      shippingMethod: config.shippingMethod,
+      province: config.province,
+      hub: config.hub || '',
+      fee: config.fee,
+      estimatedDeliveryTime: config.estimatedDeliveryTime,
+      freeShipEnabled: config.freeShipEnabled ?? false,
+      freeShipThreshold: config.freeShipThreshold ?? 0,
+      timeSlot: config.timeSlot || 'Giờ hành chính (8h00 - 18h00)',
+      whiteGloveIncluded: config.whiteGloveIncluded ?? true,
+      isActive: config.isActive,
+    };
+    this.isFormModalOpen.set(true);
+  }
+
+  closeFormModal(): void {
+    this.isFormModalOpen.set(false);
+    this.formError.set('');
+  }
+
+  saveConfig(): void {
+    this.isSubmitting.set(true);
+    this.formError.set('');
+    this.formDraft.hub = this.formDraft.hub?.trim() || (this.formDraft.province ? this.defaultHub(this.formDraft.province) : '');
+
+    const request$ =
+      this.isEditMode() && this.editingConfigId()
+        ? this.shippingService.updateConfig(this.editingConfigId()!, this.formDraft)
+        : this.shippingService.createConfig(this.formDraft);
+
+    request$.subscribe({
+      next: (saved) => {
+        this.isSubmitting.set(false);
+        this.isFormModalOpen.set(false);
+        this.showToast(
+          this.isEditMode()
+            ? `Đã cập nhật cấu hình vận chuyển ${saved.province}.`
+            : `Đã thêm cấu hình vận chuyển cho ${saved.province}.`,
+          'success'
+        );
+        this.loadConfigs();
+      },
+      error: (err: Error) => {
+        this.isSubmitting.set(false);
+        this.formError.set(err.message || 'Không thể lưu cấu hình vận chuyển.');
+      },
+    });
+  }
+
+  toggleConfig(config: ShippingRecord): void {
+    this.shippingService.toggleConfig(config.id).subscribe({
+      next: (updated) => {
+        const action = updated.isActive ? 'áp dụng' : 'ngừng áp dụng';
+        this.showToast(`Đã ${action} cấu hình vận chuyển ${updated.province}.`, 'success');
+        this.loadConfigs();
+      },
+      error: () => {
+        this.showToast('Không thể thay đổi trạng thái cấu hình vận chuyển.', 'error');
+      },
+    });
+  }
+
+  deleteConfig(config: ShippingRecord): void {
+    if (!confirm(`Bạn có chắc muốn xóa cấu hình vận chuyển [${this.methodLabel(config.shippingMethod)}] cho ${config.province}?`)) {
+      return;
+    }
+    this.shippingService.deleteConfig(config.id).subscribe({
+      next: () => {
+        this.showToast(`Đã xóa cấu hình vận chuyển ${config.province}.`, 'success');
+        this.loadConfigs();
+      },
+      error: (err: Error) => {
+        this.showToast(err.message || 'Không thể xóa cấu hình vận chuyển.', 'error');
+      },
+    });
+  }
+
+  // ==============================================================
+  // EXCEL IMPORT & EXPORT CHO VẬN CHUYỂN (KÈM DÒNG CODE HEADER)
+  // ==============================================================
+
+  /**
+   * Tải template vận chuyển gồm đúng 2 tab:
+   * Tab 1: Template_VanChuyen (chỉ gồm các trường có trong popup Thêm mới cấu hình vận chuyển)
+   * Tab 2: Danh_Sach_Ma_Tinh (danh mục mã chuẩn của toàn bộ 63 tỉnh thành)
+   */
+  async downloadExcelTemplate(): Promise<void> {
+    try {
+      // Dòng 1: Code headers kỹ thuật chuẩn (chỉ gồm đúng 5 trường trong popup Thêm mới)
+      const codeHeaders = [
+        'shipping_method',
+        'province_code',
+        'fee',
+        'free_ship_threshold',
+        'estimated_delivery_time',
+      ];
+
+      // Dòng 2: Nhãn tiếng Việt hiển thị tương ứng popup
+      const labelHeaders = [
+        'Phương thức (*: standard / express)',
+        'Mã tỉnh (* Tra cứu ở Tab 2)',
+        'Phí vận chuyển chuẩn VNĐ (* Bắt buộc)',
+        'Miễn phí cho đơn từ VNĐ (Tùy chọn)',
+        'Thời gian giao dự kiến (* Bắt buộc)',
+      ];
+
+      const sampleRow1 = [
+        'standard',
+        'HCM',
+        30000,
+        500000,
+        '1 - 2 ngày',
+      ];
+
+      const sampleRow2 = [
+        'standard',
+        'HN',
+        35000,
+        700000,
+        '2 - 3 ngày',
+      ];
+
+      const sampleRow3 = [
+        'express',
+        'DN',
+        60000,
+        1000000,
+        '24 giờ',
+      ];
+
+      const sampleRow4 = [
+        'standard',
+        'TQ',
+        50000,
+        1500000,
+        '3 - 5 ngày',
+      ];
+
+      // Tab 2: Danh sách Mã tỉnh chuẩn
+      const provinceCodeHeaders = ['province_code', 'province_name', 'region'];
+      const provinceLabelHeaders = ['MÃ TỈNH (Điền chính xác mã này vào cột province_code của Tab 1)', 'TÊN TỈNH / THÀNH PHỐ', 'KHU VỰC / VÙNG MIỀN'];
+      const provinceListSheet: any[][] = [provinceCodeHeaders, provinceLabelHeaders];
+
+      for (const p of PROVINCE_DICTIONARY) {
+        provinceListSheet.push([p.code, p.name, p.region]);
+      }
+
+      await this.excelService.exportMultiSheet(
+        [
+          { name: 'Template_VanChuyen', data: [codeHeaders, labelHeaders, sampleRow1, sampleRow2, sampleRow3, sampleRow4] },
+          { name: 'Danh_Sach_Ma_Tinh', data: provinceListSheet },
+        ],
+        'Mau_Nhap_Van_Chuyen_Livora.xlsx'
+      );
+
+      this.showToast('Đã tải xuống file template Vận chuyển gồm 2 Tab thành công.', 'success');
+    } catch (err: any) {
+      this.showToast(err.message || 'Lỗi khi tải file template Vận chuyển.', 'error');
+    }
+  }
+
+  /**
+   * Upload file Excel vận chuyển:
+   * - Nhận diện cột theo Code Headers hoặc nhãn tiếng Việt tương ứng popup Thêm mới.
+   * - Bắt buộc kiểm tra mã tỉnh với danh mục mã tỉnh chuẩn ở Tab 2.
+   * - Nếu mã sai hoặc không tìm thấy -> Báo lỗi chi tiết không nhận diện được.
+   */
+  async onFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    input.value = '';
+    this.isImporting.set(true);
+
+    try {
+      const sheets = await this.excelService.readWorkbook(file);
+      const sheetNames = Object.keys(sheets);
+      if (sheetNames.length === 0) {
+        throw new Error('File Excel rỗng, không chứa dữ liệu.');
+      }
+
+      const targetSheetName =
+        sheetNames.find((s) => s.toLowerCase().includes('vanchuyen') || s.toLowerCase().includes('van_chuyen') || s.toLowerCase().includes('template')) ||
+        sheetNames[0];
+
+      const rows = sheets[targetSheetName];
+      if (!rows || rows.length < 2) {
+        throw new Error(`Sheet "${targetSheetName}" không có dữ liệu hàng nào (ngoài tiêu đề).`);
+      }
+
+      // 1. Phân tích header: tìm chỉ số các cột dựa theo code header hoặc tiếng Việt
+      let headerRowIndex = 0;
+      let methodIdx = -1;
+      let provinceCodeIdx = -1;
+      let feeIdx = -1;
+      let thresholdIdx = -1;
+      let estTimeIdx = -1;
+
+      for (let r = 0; r < Math.min(3, rows.length); r++) {
+        const headerRow = (rows[r] || []).map((c: any) =>
+          String(c || '').toLowerCase().trim()
+        );
+
+        const findCol = (...keywords: string[]): number => {
+          return headerRow.findIndex((h) => keywords.some((kw) => h === kw || h.includes(kw)));
+        };
+
+        const tryCode = findCol('province_code', 'provincecode', 'mã tỉnh', 'ma tinh', 'code');
+        const tryMethod = findCol('shipping_method', 'shippingmethod', 'phương thức', 'phuong thuc', 'method');
+        const tryFee = findCol('fee', 'cước phí', 'cuoc phi', 'phí vận chuyển', 'phi van chuyen', 'phí');
+
+        if (tryCode !== -1 || tryFee !== -1 || tryMethod !== -1) {
+          headerRowIndex = r;
+          methodIdx = tryMethod;
+          provinceCodeIdx = tryCode;
+          feeIdx = tryFee;
+          thresholdIdx = findCol('free_ship_threshold', 'freeship', 'miễn phí', 'mien phi', 'đơn từ', 'don tu', 'ngưỡng');
+          estTimeIdx = findCol('estimated_delivery_time', 'thời gian giao', 'thoi gian', 'dự kiến', 'du kien', 'time', 'eta');
+          break;
+        }
+      }
+
+      // Fallback vị trí mặc định nếu không khớp tiêu đề
+      if (methodIdx === -1) methodIdx = 0;
+      if (provinceCodeIdx === -1) provinceCodeIdx = 1;
+      if (feeIdx === -1) feeIdx = 2;
+      if (thresholdIdx === -1) thresholdIdx = 3;
+      if (estTimeIdx === -1) estTimeIdx = 4;
+
+      const clientErrors: string[] = [];
+      const configsToUpload: any[] = [];
+
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0 || row.every((c: any) => c === '' || c === null || c === undefined)) {
+          continue;
+        }
+
+        const rawCodeInput = provinceCodeIdx !== -1 ? String(row[provinceCodeIdx] || '').trim() : '';
+
+        // Bỏ qua dòng header phụ tiếng Việt nếu có
+        if (
+          rawCodeInput.toLowerCase() === 'province_code' ||
+          rawCodeInput.toLowerCase() === 'code' ||
+          rawCodeInput.toLowerCase().includes('mã tỉnh') ||
+          rawCodeInput.toLowerCase().includes('tên tỉnh')
+        ) {
+          continue;
+        }
+
+        const rowIdx = i + 1;
+        const methodRaw = methodIdx !== -1 ? String(row[methodIdx] || '').trim().toLowerCase() : '';
+        const feeRaw = feeIdx !== -1 ? Number(row[feeIdx]) : NaN;
+        const thresholdRaw = thresholdIdx !== -1 && row[thresholdIdx] !== '' && row[thresholdIdx] !== null && row[thresholdIdx] !== undefined ? Number(row[thresholdIdx]) : 0;
+        const estimatedDeliveryTime = estTimeIdx !== -1 ? String(row[estTimeIdx] || '').trim() : '';
+
+        // 1. Kiểm tra mã tỉnh (BẮT BUỘC TRA CỨU ĐÚNG MÃ TỈNH Ở TAB 2)
+        if (!rawCodeInput) {
+          clientErrors.push(`Dòng ${rowIdx}: Cột Mã tỉnh đang để trống. Vui lòng điền mã tỉnh từ tab Danh_Sach_Ma_Tinh.`);
+          continue;
+        }
+
+        const resolved = this.excelService.resolveProvinceByCode(rawCodeInput);
+        if (!resolved.valid) {
+          clientErrors.push(
+            `Dòng ${rowIdx}: Mã tỉnh "${rawCodeInput}" KHÔNG HỢP LỆ! Hệ thống không nhận diện được. Vui lòng đối chiếu mã chuẩn tại tab "Danh_Sach_Ma_Tinh".`
+          );
+          continue;
+        }
+
+        const province = resolved.provinceName;
+
+        // 2. Phương thức vận chuyển (standard / express)
+        const shippingMethod = (methodRaw.includes('express') || methodRaw.includes('nhanh') || methodRaw.includes('hỏa tốc'))
+          ? 'express'
+          : 'standard';
+
+        // 3. Cước phí chuẩn
+        if (isNaN(feeRaw) || feeRaw < 0) {
+          clientErrors.push(`Dòng ${rowIdx} (${province}): Cước phí "${row[feeIdx]}" không hợp lệ (phải là số nguyên VND >= 0).`);
+          continue;
+        }
+
+        // 4. Miễn phí cho đơn từ
+        const freeShipThreshold = isNaN(thresholdRaw) || thresholdRaw < 0 ? 0 : thresholdRaw;
+        const freeShipEnabled = freeShipThreshold > 0;
+
+        // 5. Thời gian giao dự kiến
+        const finalEstTime = estimatedDeliveryTime || (shippingMethod === 'express' ? '24 giờ' : '2 - 4 ngày');
+
+        configsToUpload.push({
+          province,
+          shippingMethod,
+          fee: feeRaw,
+          estimatedDeliveryTime: finalEstTime,
+          freeShipThreshold,
+          freeShipEnabled,
+          timeSlot: 'Giờ hành chính (8h00 - 18h00)',
+          whiteGloveIncluded: false,
+          hub: this.defaultHub(province),
+          feeNote: '',
+          isActive: true,
+        });
+      }
+
+      if (configsToUpload.length === 0) {
+        this.isImporting.set(false);
+        this.importReport.set({
+          open: true,
+          title: 'Kết quả kiểm tra file Excel Vận chuyển',
+          successCount: 0,
+          updatedCount: 0,
+          insertedCount: 0,
+          total: rows.length - 1,
+          errors: clientErrors.length > 0 ? clientErrors : ['Không tìm thấy dữ liệu vận chuyển hợp lệ nào trong file.'],
+        });
+        return;
+      }
+
+      this.shippingService.createShippingConfigsBulk(configsToUpload).subscribe({
+        next: (res) => {
+          this.isImporting.set(false);
+          const allErrors = [...clientErrors, ...(res.errors || [])];
+          this.importReport.set({
+            open: true,
+            title: 'Kết quả nhập dữ liệu Cấu hình Vận chuyển từ Excel',
+            successCount: res.successCount || 0,
+            updatedCount: res.updatedCount || 0,
+            insertedCount: res.insertedCount || 0,
+            total: configsToUpload.length + clientErrors.length,
+            errors: allErrors,
+          });
+          this.showToast(`Đã xử lý nhập thành công ${res.successCount} cấu hình vận chuyển.`, 'success');
+          this.loadConfigs();
+        },
+        error: (err: Error) => {
+          this.isImporting.set(false);
+          this.showToast(err.message || 'Lỗi hệ thống khi tải dữ liệu vận chuyển lên.', 'error');
+        },
+      });
+    } catch (err: any) {
+      this.isImporting.set(false);
+      this.showToast(err.message || 'Không thể xử lý file Excel vận chuyển đã chọn.', 'error');
+    }
+  }
+
+  closeImportReport(): void {
+    this.importReport.set({
+      ...this.importReport(),
+      open: false,
+    });
+  }
+
+  methodLabel(method: ShippingMethod): string {
+    return method === 'standard' ? 'Giao tiêu chuẩn' : 'Giao nhanh';
+  }
+
+  formatCurrency(value: number): string {
+    return new Intl.NumberFormat('vi-VN').format(value) + ' đ';
+  }
+
+  formatDate(iso: string): string {
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) {
+      return iso;
+    }
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  private emptyDraft(): ShippingDraft {
+    return {
+      shippingMethod: 'standard',
+      province: '',
+      hub: '',
+      fee: null as any,
+      estimatedDeliveryTime: '',
+      freeShipEnabled: false,
+      freeShipThreshold: null as any,
+      timeSlot: '',
+      whiteGloveIncluded: false,
+      isActive: true,
+    };
+  }
+
+  private defaultHub(province: string): string {
+    return `Trung tâm ${province}`;
+  }
+
+  private showToast(msg: string, type: 'success' | 'error'): void {
+    this.toastMessage.set(msg);
+    this.toastType.set(type);
+    if (this.toastTimer) {
+      clearTimeout(this.toastTimer);
+    }
+    this.toastTimer = setTimeout(() => {
+      this.toastMessage.set('');
+      this.cdr.markForCheck();
+    }, 3500);
+    this.cdr.markForCheck();
+  }
+}

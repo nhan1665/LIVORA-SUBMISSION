@@ -1,0 +1,20 @@
+# Dependencies
+**/node_modules/
+.venv/
+
+# Angular
+**/.angular/
+
+# Logs
+*.log
+
+# Build output
+**/dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Runtime uploads (admin-uploaded policy files etc.) must not be committed
+livora_backend/public/uploads/

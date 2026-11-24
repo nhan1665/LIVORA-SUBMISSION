@@ -1,0 +1,41 @@
+@import './app/room_management/room/room.css';
+@import './app/room_management/catalog.css';
+@import './app/customer_management/customer/customer.css';
+@import './app/product_management/category/category.css';
+@import './app/product_management/product/product.css';
+@import './app/order_management/order/order.css';
+@import './app/order_management/refund/refund.css';
+@import './app/interaction_management/interaction.css';
+@import './app/settings/settings.css';
+@import './app/settings/voucher/voucher.css';
+
+/* Global styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #333;
+  background-color: #f7f6f4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar for sidebar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}

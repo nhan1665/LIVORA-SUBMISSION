@@ -1,0 +1,342 @@
+<div class="category-page">
+  <!-- Page Header -->
+  <header class="page-header">
+    <div class="header-left">
+      <h1 class="page-title">Quản lý loại sản phẩm</h1>
+      <p class="page-desc">Quản lý và phân loại toàn bộ danh mục sản phẩm nội thất trên hệ thống LIVORA</p>
+    </div>
+    <div class="header-right">
+      <button type="button" class="btn btn-primary" (click)="openCreateModal()">
+        <svg class="btn-icon" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        <span>Thêm loại sản phẩm</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Filter & Search Toolbar -->
+  <section class="toolbar-card">
+    <div class="search-box">
+      <svg class="search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+        <circle cx="9" cy="9" r="6" stroke-width="1.8" />
+        <path d="M13.5 13.5L18 18" stroke-width="1.8" stroke-linecap="round" />
+      </svg>
+      <input
+        type="text"
+        class="search-input"
+        placeholder="Tìm kiếm theo mã, tên loại, đường dẫn slug..."
+        [(ngModel)]="searchDraft"
+        (input)="onSearchChange()"
+      />
+      <button *ngIf="searchDraft" type="button" class="clear-btn" (click)="clearSearch()">✕</button>
+    </div>
+
+    <div class="filter-controls">
+      <div class="filter-group">
+        <label for="status-filter">Trạng thái:</label>
+        <select
+          id="status-filter"
+          class="select-control"
+          [(ngModel)]="statusDraft"
+          (change)="onFilterChange()"
+        >
+          <option value="all">Tất cả trạng thái</option>
+          <option value="active">Đang hoạt động ({{ activeCount() }})</option>
+          <option value="inactive">Tạm dừng ({{ inactiveCount() }})</option>
+        </select>
+      </div>
+
+      <div class="filter-actions">
+        <button type="button" class="btn btn-filter" (click)="onFilterChange()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+          <span>Lọc</span>
+        </button>
+        <button type="button" class="btn btn-reset" (click)="resetFilters()" title="Đặt lại bộ lọc">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+          </svg>
+          <span>Đặt lại</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="summary-badge">
+      <span class="dot"></span>
+      <span>Tổng số: <strong>{{ totalItems() }}</strong> loại sản phẩm</span>
+    </div>
+  </section>
+
+  <!-- Main Table Container -->
+  <div class="table-card">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="col-check">
+              <input type="checkbox" [checked]="isAllSelected()" (change)="toggleSelectAll()" aria-label="Chọn tất cả" />
+            </th>
+            <th class="col-code">MÃ LOẠI</th>
+            <th class="col-name">TÊN LOẠI SẢN PHẨM</th>
+            <th class="col-slug">ĐƯỜNG DẪN (SLUG)</th>
+            <th class="col-count text-center">SỐ LƯỢNG SP</th>
+            <th class="col-status text-center">TRẠNG THÁI</th>
+            <th class="col-actions text-right">THAO TÁC</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let cat of categories()" [class.row-selected]="isSelected(cat.id)" (click)="openEditModal(cat)" style="cursor: pointer;">
+            <td class="col-check" (click)="$event.stopPropagation()">
+              <input type="checkbox" [checked]="isSelected(cat.id)" (change)="toggleSelect(cat.id)" aria-label="Chọn dòng" />
+            </td>
+            <td class="col-code">
+              <span class="code-pill">{{ cat.code }}</span>
+            </td>
+            <td class="col-name">
+              <div class="category-meta">
+                <span class="category-title">{{ cat.name }}</span>
+                <span class="category-desc" [title]="cat.description">{{ cat.description }}</span>
+              </div>
+            </td>
+            <td class="col-slug">
+              <code class="slug-tag">/{{ cat.slug }}</code>
+            </td>
+            <td class="col-count text-center">
+              <span class="count-badge">{{ cat.productCount }} sp</span>
+            </td>
+            <td class="col-status text-center">
+              <button
+                type="button"
+                class="status-btn"
+                [class.status-active]="cat.isActive"
+                [class.status-inactive]="!cat.isActive"
+                (click)="toggleStatus(cat)"
+                [title]="cat.isActive ? 'Nhấp để tạm dừng' : 'Nhấp để kích hoạt'"
+              >
+                <span class="status-indicator"></span>
+                <span>{{ cat.isActive ? 'Đang hoạt động' : 'Tạm dừng' }}</span>
+              </button>
+            </td>
+            <td class="col-actions text-right" (click)="$event.stopPropagation()">
+              <div class="action-btn-group">
+                <button type="button" class="btn-action-text" (click)="openEditModal(cat)" title="Chỉnh sửa loại">
+                  Chỉnh sửa
+                </button>
+                <button
+                  type="button"
+                  class="btn-action-text"
+                  [class.btn-action-delete]="cat.isActive"
+                  (click)="confirmDelete(cat)"
+                  [title]="cat.isActive ? 'Tạm dừng loại sản phẩm' : 'Kích hoạt lại loại sản phẩm'"
+                >
+                  {{ cat.isActive ? 'Tạm dừng' : 'Kích hoạt' }}
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Empty State -->
+          <tr *ngIf="categories().length === 0">
+            <td colspan="7" class="empty-cell">
+              <div class="empty-state">
+                <div class="empty-icon-wrap" aria-hidden="true">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#704b4a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                  </svg>
+                </div>
+                <h3>Không tìm thấy loại sản phẩm nào</h3>
+                <p>Vui lòng thử từ khóa tìm kiếm khác hoặc đặt lại bộ lọc.</p>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="resetFilters()">Đặt lại bộ lọc</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Footer -->
+    <footer class="pagination-footer">
+      <div class="pagination-info">
+        Hiển thị <strong>{{ paginationStartIndex() }}</strong> - <strong>{{ paginationEndIndex() }}</strong> trong tổng số <strong>{{ totalItems() }}</strong> loại sản phẩm
+      </div>
+      <div class="pagination-nav">
+        <button
+          type="button"
+          class="page-btn nav-arrow"
+          [disabled]="currentPage() === 1"
+          (click)="changePage(currentPage() - 1)"
+          aria-label="Trang trước"
+        >
+          &lt;
+        </button>
+        <button
+          *ngFor="let p of pageNumbers()"
+          type="button"
+          class="page-btn"
+          [class.active]="p === currentPage()"
+          (click)="changePage(p)"
+        >
+          {{ p }}
+        </button>
+        <button
+          type="button"
+          class="page-btn nav-arrow"
+          [disabled]="currentPage() === totalPages()"
+          (click)="changePage(currentPage() + 1)"
+          aria-label="Trang kế tiếp"
+        >
+          &gt;
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modal: Thêm mới / Chỉnh sửa loại sản phẩm -->
+  <div *ngIf="isModalOpen()" class="modal-backdrop" (click)="onBackdropClick($event)">
+    <div class="modal-dialog" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 class="modal-title">{{ isEditMode() ? 'Chỉnh sửa loại sản phẩm' : 'Thêm mới loại sản phẩm' }}</h2>
+          <p class="modal-subtitle">Điền thông tin chi tiết để thiết lập danh mục hiển thị trên hệ thống</p>
+        </div>
+        <button type="button" class="modal-close-btn" (click)="closeModal()" aria-label="Đóng cửa sổ">✕</button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div style="display: flex; gap: 8px; border-bottom: 2px solid #ecdcdb; padding: 0 24px 10px 24px; margin-top: 4px;">
+        <button
+          type="button"
+          (click)="activeModalTab = 'form'"
+          [style.background]="activeModalTab === 'form' ? '#704b4a' : '#f5ebea'"
+          [style.color]="activeModalTab === 'form' ? '#ffffff' : '#704b4a'"
+          style="padding: 7px 14px; border-radius: 6px; font-weight: 600; font-size: 13px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;"
+        >
+          <span>Thông tin loại sản phẩm</span>
+        </button>
+        <button
+          *ngIf="isEditMode()"
+          type="button"
+          (click)="activeModalTab = 'history'"
+          [style.background]="activeModalTab === 'history' ? '#704b4a' : '#f5ebea'"
+          [style.color]="activeModalTab === 'history' ? '#ffffff' : '#704b4a'"
+          style="padding: 7px 14px; border-radius: 6px; font-weight: 600; font-size: 13px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;"
+        >
+          <span>Lịch sử thao tác & thay đổi</span>
+        </button>
+      </div>
+
+      <div *ngIf="activeModalTab === 'history'" style="padding: 16px 24px;">
+        <app-activity-log
+          entityType="category"
+          [entityId]="editingCategoryId() || formDraft.code || 'cat'"
+          [entityCode]="formDraft.code"
+        ></app-activity-log>
+        <div style="margin-top: 16px; text-align: right;">
+          <button type="button" class="btn btn-secondary" (click)="closeModal()">Đóng</button>
+        </div>
+      </div>
+
+      <form *ngIf="activeModalTab === 'form'" (ngSubmit)="saveCategory()" class="modal-body">
+        <div class="form-group">
+          <label for="cat-code" class="form-label required">Mã loại sản phẩm</label>
+          <input
+            id="cat-code"
+            type="text"
+            class="form-input"
+            [(ngModel)]="formDraft.code"
+            name="catCode"
+            placeholder="VD: CAT-SOFA"
+            required
+          />
+          <span class="field-hint">Mã định danh duy nhất (chữ in hoa)</span>
+        </div>
+
+        <div class="form-group">
+          <label for="cat-name" class="form-label required">Tên loại sản phẩm</label>
+          <input
+            id="cat-name"
+            type="text"
+            class="form-input"
+            [(ngModel)]="formDraft.name"
+            (input)="onNameChange()"
+            name="catName"
+            placeholder="VD: Sofa & Armchair"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="cat-slug" class="form-label required">Đường dẫn SEO (Slug)</label>
+          <div class="input-prefix-group">
+            <span class="prefix">livora.vn/products/</span>
+            <input
+              id="cat-slug"
+              type="text"
+              class="form-input prefixed"
+              [(ngModel)]="formDraft.slug"
+              name="catSlug"
+              placeholder="sofas"
+              required
+            />
+          </div>
+        </div>
+
+        <div *ngIf="isEditMode()" class="form-group">
+          <label class="form-label">Trạng thái hoạt động</label>
+          <div class="radio-inline-group">
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="catStatus"
+                [value]="true"
+                [(ngModel)]="formDraft.isActive"
+              />
+              <span class="radio-text">
+                <strong class="text-success">Đang hoạt động</strong> - Hiển thị ngay trên website
+              </span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="catStatus"
+                [value]="false"
+                [(ngModel)]="formDraft.isActive"
+              />
+              <span class="radio-text">
+                <strong class="text-muted">Tạm dừng</strong> - Ẩn khỏi danh mục người dùng
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cat-desc" class="form-label">Mô tả loại sản phẩm</label>
+          <textarea
+            id="cat-desc"
+            class="form-textarea"
+            rows="3"
+            [(ngModel)]="formDraft.description"
+            name="catDesc"
+            placeholder="Mô tả công năng và phong cách của nhóm sản phẩm này..."
+          ></textarea>
+        </div>
+
+        <div *ngIf="errorMessage()" class="alert-error">
+          {{ errorMessage() }}
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="closeModal()">Hủy bỏ</button>
+          <button type="submit" class="btn btn-primary" [disabled]="isSubmitting()">
+            {{ isSubmitting() ? 'Đang lưu...' : (isEditMode() ? 'Cập nhật thay đổi' : 'Lưu loại sản phẩm') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
